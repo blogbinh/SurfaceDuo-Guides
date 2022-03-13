@@ -1,4 +1,4 @@
-# Surface Duo Guides
-Guides for the Surface Duo.
+# Hướng dẫn cho Surface Duo
+Hướng dẫn dành cho Surface Duo.
 
-- [Install Windows](https://github.com/WOA-Project/SurfaceDuo-Guides/blob/main/InstallWindows.md)
+- [Cài đặt Windows](https://github.com/WOA-Project/SurfaceDuo-Guides/blob/main/InstallWindows.md)
