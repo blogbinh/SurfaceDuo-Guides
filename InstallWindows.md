@@ -1,12 +1,13 @@
-# Install Windows on Surface Duo (128GB)
-## Files Needed 📃
+# Install Windows on Surface Duo
+## Files/Tools Needed 📃
 - TWRP image: [twrp.img](https://github.com/WOA-Project/SurfaceDuo-Guides/raw/main/InstallWindows-Files/twrp.img)
 - Parted: [parted](https://github.com/WOA-Project/SurfaceDuo-Guides/raw/main/InstallWindows-Files/parted)
 - Boot package: [DuoBoot.tar](https://github.com/WOA-Project/SurfaceDuo-Guides/raw/main/InstallWindows-Files/DuoBoot.tar)
 - Custom UEFI: [boot.img](https://github.com/WOA-Project/SurfaceDuoPkg/releases/)
 - [Platform Tools from Google (ADB and Fastboot)](https://developer.android.com/studio/releases/platform-tools)
-- An ARM64 Windows build of your choice (specifically the install.wim file). You can use [UUPMediaCreator](https://github.com/gus33000/UUPMediaCreator) for this
+- An ARM64 Windows build of your choice (specifically the install.wim file). You can use [UUPMediaCreator](https://github.com/gus33000/UUPMediaCreator) for this. [Here's a guide on how to use it.](https://github.com/WOA-Project/SurfaceDuo-Guides/blob/main/CreateWindowsISO.md)
 - The driver set: [SurfaceDuo-Drivers-Full.zip](https://github.com/WOA-Project/SurfaceDuo-Drivers/releases/)
+- A Windows PC to build the Windows ISO, apply it onto the phone from mass storage, add drivers to the installation, configure ESP
 
 ## Warnings ⚠️
 Don't create partitions from Mass Storage Mode (because ABL will break with blank/spaces in names)
@@ -16,12 +17,13 @@ Don't create partitions from Mass Storage Mode (because ABL will break with blan
 We don't take any responsibility for any damage done to your phone. By following this guide, you agree to take full responsibility of your actions. We have done some testing,
 but this is **AN EARLY PREVIEW** and things can go wrong.
 
-This hasn't been tested on 256GB devices. This guide only targets 128GB devices.
+As of now, the 256GB are not supported by the dev team, but testing has shown it is compatible. The size of the Windows system will be larger. 
+128GB devices have full support.
 
 **PLEASE READ AND BE SURE TO UNDERSTAND THE ENTIRE GUIDE BEFORE STARTING**
 
 ## What you'll get 🛒
-You'll end up with both Android and Windows on your Duo. Android and Windows will both split the 128GB memory (64GB and 64GB)
+You'll end up with both Android and Windows on your Duo. Android and Windows will both split the 128GB memory (64GB and 64GB). _For the 256GB Model, the 256GB storage will be split (128GB, 128GB)._
 
 Android will boot normally, and you'll have to use a PC to boot Windows when needed.
 
@@ -64,13 +66,25 @@ print
 
 - **Make sure that the last partition listed is numbered 6.**
 - Take note of original sizing, here it was 51.9MB -> 112GB
-- Run these commands:
+- _For 256GB devices, it will be 51.9MB -> 240GB_
 
+- Run these commands for 128GB devices:
 ```
 rm 6
 mkpart esp fat32 51.9MB 300MB
 mkpart win ntfs 300MB 57344MB
 mkpart userdata ext4 57344MB 112GB
+set 6 esp on
+quit
+```
+
+- Run these commands for 256GB devices:
+
+```
+rm 6
+mkpart esp fat32 51.9MB 300MB
+mkpart win ntfs 300MB 114688MB
+mkpart userdata ext4 114688MB 240GB
 set 6 esp on
 quit
 ```
@@ -103,7 +117,7 @@ quit
 
 ```
 adb push <path to DuoBoot.tar> /sdcard/
-adb shell "tar -xf /sdcard/DuoBoot.tar -C /sdcard/espmnt"
+adb shell "tar -xf /sdcard/DuoBoot.tar -C /sdcard/espmnt --no-same-owner" 
 adb shell "mv /sdcard/espmnt/Windows/System32/Boot/ffuloader.efi /sdcard/espmnt/Windows/System32/Boot/ffuloader.efi.bak"
 adb shell "cp /sdcard/espmnt/Windows/System32/Boot/developermenu.efi /sdcard/espmnt/Windows/System32/Boot/ffuloader.efi"
 adb reboot bootloader
@@ -121,7 +135,7 @@ fastboot boot boot.img
 
 This step above will be needed every time you'll want to boot Windows.
 
-You should be thrown in Developer Menu. 
+You should be thrown in Developer Menu.
 
 - Navigate with the volume up/down buttons to Mass Storage Mode, and press the Power Button to confirm. Once you're in Mass Storage Mode, we're ready to continue.
 
@@ -131,7 +145,7 @@ You should be thrown in Developer Menu.
 - Mount the partitions you have created using diskpart and assign them some letters:
 
 ```
-THESE ARE NOT ALL COMMANDS. DISKPART COMMANDS VARY A LOT, SO THESE ARE SOME ROUGH INSTRUCTIONS. 
+⚠️ THESE ARE NOT ALL COMMANDS. DISKPART COMMANDS VARY A LOT, SO THESE ARE SOME ROUGH INSTRUCTIONS. 
 ACTUAL COMMANDS START WITH AN HASHTAG (which you'll need to remove)
 
 # list disk
@@ -147,9 +161,9 @@ You'll be able to recognize the partitions we made earlier by their size. take n
 
 - You'll have two partitions loaded, one is the ESP partition, and the other is the Win partition. Take note of the letters you've used.
 
-**_WARNING: We'll assume X: is the Win partition and that Y: is the ESP partition for the next commands. Replace them correctly or you'll lose data on your PC._**
+**_⚠️ WARNING: From now on we'll assume X: is the Win partition and that Y: is the ESP partition for all the commands. Replace them correctly or you'll lose data on your PC._**
 
-- Run these commands:
+- We'll need our install.wim file now. If you haven't it already, you can [use this guide](https://github.com/WOA-Project/SurfaceDuo-Guides/blob/main/CreateWindowsISO.md). When you're ready, run these commands:
 
 ```
 dism /apply-image /ImageFile:"<path to install.wim>" /index:1 /ApplyDir:X:\
@@ -173,7 +187,29 @@ Windows is now installed but has no drivers.
 dism /image:X:\ /add-driver /driver:"<path to extracted drivers>" /recurse
 ```
 
-- Once it's done, you can reboot your phone. You'll be able to Android and your phone will work normally. Set it up if you need it.
+- Now we want to disable driver signature checks (otherwise Windows will throw a BSOD at boot) and enable the legacy boot manager:
+
+```
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /set {default} testsigning on
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /set {bootmgr} displaybootmenu yes
+```
+
+### Enabling the Windows Bootmanager to access the Developer Menu
+
+You might also want to add a boot entry to the Developer Menu, if you want it to be available when needed. You'll get the Windows Bootmanager to show up at boot, and you'll be able to choose if you want to boot Windows or the Developer Menu. This step is not required, but still highly recommended for now:
+
+```
+❕❕ THESE STEPS ARE NOT REQUIRED BUT HIGHLY RECOMMENDED ❕❕
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /create /application bootapp /d "Developer Menu"
+# THE COMMAND ABOVE WILL PRINT A GUID, COPY IT
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /set <GUID> nointegritychecks on
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /set <GUID> path \Windows\System32\boot\developermenu.efi
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /set <GUID> inherit {bootloadersettings}
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /set <GUID> device boot
+bcdedit /store Y:\EFI\Microsoft\BOOT\BCD /displayorder <GUID> /addlast
+```
+
+- Once it's done, you can reboot your phone. You'll be able to boot to Android and your phone will work normally. Set it up if you need it.
 
 ### Boot Windows 🚀
 
